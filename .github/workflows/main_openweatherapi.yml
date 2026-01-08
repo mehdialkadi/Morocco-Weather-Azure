@@ -1,6 +1,4 @@
-# Docs for the Azure Web Apps Deploy action: https://github.com/azure/functions-action
-# More GitHub Actions for Azure: https://github.com/Azure/actions
-# More info on Python, GitHub Actions, and Azure Functions: https://aka.ms/python-webapps-actions
+# Docs: https://github.com/Azure/functions-action
 
 name: Build and deploy Python project to Azure Function App - openweatherAPI
 
@@ -11,14 +9,14 @@ on:
   workflow_dispatch:
 
 env:
-  AZURE_FUNCTIONAPP_PACKAGE_PATH: '.' # set this to the path to your web app project, defaults to the repository root
-  PYTHON_VERSION: '3.10' # set this to the python version to use (supports 3.6, 3.7, 3.8)
+  AZURE_FUNCTIONAPP_PACKAGE_PATH: '.'     # repo root
+  PYTHON_VERSION: '3.10'
 
 jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: read #This is required for actions/checkout
+      contents: read
 
     steps:
       - name: Checkout repository
@@ -29,37 +27,30 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Create and start virtual environment
+      # Optionnel (mais propre) : ne crée pas un venv si tu n'en as pas besoin
+      - name: Install dependencies into .python_packages
         run: |
-          python -m venv venv
-          source venv/bin/activate
-
-      - name: 'Install dependencies'
-        run: |
-          pushd './'
           python -m pip install --upgrade pip
           pip install -r requirements.txt --target=".python_packages/lib/site-packages"
-          popd
 
-      # Optional: Add step to run tests here
-
+      # Zip DU CONTENU du repo (pas le dossier parent), en excluant les trucs inutiles
       - name: Zip artifact for deployment
-        run: zip -r release.zip . -x "venv/*" ".git/*" ".github/*"
+        run: |
+          zip -r release.zip . \
+            -x "venv/*" ".venv/*" ".git/*" ".github/*" "__pycache__/*" "*.pyc"
 
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
         with:
           name: python-app
-          path: |
-            release.zip
-            !venv/
+          path: release.zip
 
   deploy:
     runs-on: ubuntu-latest
     needs: build
     permissions:
-      id-token: write #This is required for requesting the JWT
-      contents: read #This is required for actions/checkout
+      id-token: write
+      contents: read
 
     steps:
       - name: Download artifact from build job
@@ -67,11 +58,7 @@ jobs:
         with:
           name: python-app
 
-      - name: Unzip artifact for deployment
-        run: |
-          unzip release.zip
-          rm release.zip
-        
+      # IMPORTANT : on ne unzip PAS. On déploie le ZIP direct.
       - name: Login to Azure
         uses: azure/login@v2
         with:
@@ -79,14 +66,15 @@ jobs:
           tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_DFABA5ED38F64940B9842AED5892998C }}
           subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_159CA609D7C3487ABDB40A02765C8D9C }}
 
-      - name: 'Deploy to Azure Functions'
+      - name: Deploy to Azure Functions (zip deploy)
         uses: Azure/functions-action@v1
-        id: deploy-to-function
         with:
-          app-name: 'openweatherAPI'
-          slot-name: 'Production'
-          package: ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}
+          app-name: openweatherAPI
+          slot-name: Production
+          package: release.zip
+
 
           
+
 
 
