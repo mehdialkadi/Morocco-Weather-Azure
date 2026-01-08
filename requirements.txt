@@ -1,8 +1,0 @@
-azure-functions
-pandas
-openmeteo-requests
-requests-cache
-retry-requests
-azure-storage-blob
-azure-identity
-numpy
