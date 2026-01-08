@@ -1,0 +1,80 @@
+# Docs: https://github.com/Azure/functions-action
+
+name: Build and deploy Python project to Azure Function App - openweatherAPI
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  AZURE_FUNCTIONAPP_PACKAGE_PATH: '.'     # repo root
+  PYTHON_VERSION: '3.10'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python version
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      # Optionnel (mais propre) : ne crée pas un venv si tu n'en as pas besoin
+      - name: Install dependencies into .python_packages
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt --target=".python_packages/lib/site-packages"
+
+      # Zip DU CONTENU du repo (pas le dossier parent), en excluant les trucs inutiles
+      - name: Zip artifact for deployment
+        run: |
+          zip -r release.zip . \
+            -x "venv/*" ".venv/*" ".git/*" ".github/*" "__pycache__/*" "*.pyc"
+
+      - name: Upload artifact for deployment job
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-app
+          path: release.zip
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Download artifact from build job
+        uses: actions/download-artifact@v4
+        with:
+          name: python-app
+
+      # IMPORTANT : on ne unzip PAS. On déploie le ZIP direct.
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_FF0C334001844598910F683AFCFD7E0F }}
+          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_DFABA5ED38F64940B9842AED5892998C }}
+          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_159CA609D7C3487ABDB40A02765C8D9C }}
+
+      - name: Deploy to Azure Functions (zip deploy)
+        uses: Azure/functions-action@v1
+        with:
+          app-name: openweatherAPI
+          slot-name: Production
+          package: release.zip
+
+
+          
+
+
+
